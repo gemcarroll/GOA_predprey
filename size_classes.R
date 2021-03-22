@@ -167,7 +167,7 @@ ggplot()+
   theme(axis.title = element_text(size=30), legend.text=element_text(size=24), legend.title=element_text(size=30), axis.text = element_text(size = 18))
 
 ##### size bins for POP
-#### small = 10-50cm
+#### small = 10-20cm; medium = 20 - 40cm; large = 40-50cm
 
 contrib_sab <- contrib %>% filter(pred == "Sablefish") %>% as_tibble(rownames = "pred_len_bin") %>% select(-pred)
 
