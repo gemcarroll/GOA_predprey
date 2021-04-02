@@ -51,7 +51,7 @@ survey <- diet %>% group_by(year) %>% summarise(race = any(cruise_type == "Race_
 diet <- diet %>% filter(year %in% survey$year)
 
 #### plot sampling coverage by year
-ggplot(data = subset(diet, pred == "Pacific halibut"), aes(lon, lat))+
+ggplot(data = diet, aes(lon, lat))+
   geom_point()+
   facet_wrap(~year)
 

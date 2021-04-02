@@ -1,3 +1,5 @@
+require(dplyr)
+require(stringr)
 
 ##### code to combine biomass cpue data for 6 predators and add length bins prior to building species distribution models. 
 
@@ -18,7 +20,20 @@ pop <- pop[, 2:length(pop)]
 #### bind datasets together
 preds <- rbind(atf, sablefish, pollock, halibut, pcod, pop)
 
-names(preds) <- c("vessel", "cruise", "haul", "hauljoin", "year", "lat", "lon", "month", "day", "stratum", "station", "btemp", "stemp", "depth", "depthr", "tempr", "bin", "biom_kgkm2", "num_km2", "species_code", "sprecies_name", "pred", "region", "LW_a", "LW_b", "srvy_nm")
+names(preds) <- c("vessel", "cruise", "haul", "hauljoin", "year", "lat", "lon", "month", "day", "stratum", "station", "btemp", "stemp", "depth", "depthr", "tempr", "bin", "biom_kgkm2", "num_km2", "species_code", "species_name", "pred", "region", "LW_a", "LW_b", "srvy_nm")
+
+##### add zone information 
+strata <- read.csv('/Users/gemmacarroll/Google Drive/NOAA/AFSC/GOA food web modelling/Diet data/table_strata.csv')
+
+### reduce to just column of interest for joining (IPHC)
+strata <- strata %>% filter(Region == "GOA") %>% select(Stratum, ECOPATH_PP, area, mindepth, maxdepth) %>% rename(stratum = Stratum, zone = ECOPATH_PP)
+preds <- left_join(preds, strata, by = "stratum")
+preds$zone2 <- str_sub(preds$zone, 1, -6)
+preds$zone2[is.na(preds$zone2)] <- "Southeast"
+preds$zone2[preds$zone2 == "Southeast" & preds$lon < -140] <- NA
+
+ggplot(data = preds, aes(lon, lat, colour = zone2))+
+  geom_point()
 
 ##### add size class identifiers based on explorations conducted in 'size_classes.R'
 preds$length_class <- NA
@@ -61,7 +76,6 @@ preds$length_class[preds$pred == "Pacific ocean perch" & preds$bin > 99 & preds$
 preds$length_class[preds$pred == "Pacific ocean perch" & preds$bin > 199 & preds$bin < 400] <- "medium"  
 preds$length_class[preds$pred == "Pacific ocean perch" & preds$bin > 399 & preds$bin < 500] <- "large"  
 
-
 #### remove length bins that are not represented well by the diet data
 preds <- preds %>% filter(! is.na(preds$length_class))
 
@@ -75,6 +89,29 @@ preds$species_length_class[preds$pred == 'sablefish'] <- "sab"
 preds$species_length_class[preds$pred == 'walleye pollock'] <- "pol"
 preds$species_length_class <- paste(preds$species_length_class, preds$length_class, sep = "_")
 
+#### remove small sablefish class because there are only 23 observations
+preds <- preds %>% filter(! species_length_class == "sab_small")
+
+##### reduce to just summer survey
+preds <- preds %>% filter(month == c(6,7,8))
+
+##### get total biomass cpue for each size class 
+preds_sum <- preds %>% group_by(year, station, pred, species_length_class) %>% summarise(biom_kgkm2 = sum(biom_kgkm2))
+
+###### add 0s into the data
+station <- preds %>% distinct(year, station)
+species <- preds %>% distinct(year, pred, species_length_class)
+lonlat <- preds %>% distinct(year, station, lon, lat, month, depth, btemp, stemp)
+
+pred_grid <- left_join(station, species)
+preds_sum2 <- left_join(pred_grid, lonlat)
+preds_sum3 <- left_join(preds_sum2, preds_sum)
+
+preds_sum3$biom_kgkm2[is.na(preds_sum3$biom_kgkm2)] <- 0
+
+###### order by year and station
+pred <- preds_sum3[with(preds_sum3, order(year, station, species_length_class)),]
+
 ##### save file 
-write.csv(preds, file = "/Users/gemmacarroll/Google Drive/NOAA/AFSC/GOA food web modelling/GOA_predprey/goa_biomass_clean.csv", row.names = F)
+write.csv(pred, file = "/Users/gemmacarroll/Google Drive/NOAA/AFSC/GOA food web modelling/GOA_predprey/goa_biomass_clean.csv", row.names = F)
 
